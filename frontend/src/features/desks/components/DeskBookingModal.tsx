@@ -3,6 +3,7 @@ import {
   type AvailabilitySlot,
   useCreateBookingMutation,
   useDeskAvailabilityQuery,
+  useCreateRecurringBookingMutation,
 } from "@/features/desks/api/deskBookings";
 import type { Desk } from "@/features/desks/api/desks";
 import { useQueryClient } from "@tanstack/react-query";
@@ -100,6 +101,7 @@ export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
   } = useDeskAvailabilityQuery(desk.id, startAt, endAt);
 
   const bookingMutation = useCreateBookingMutation();
+  const recurringMutation = useCreateRecurringBookingMutation();
   const [bookingError, setBookingError] = React.useState<string | null>(null);
 
   const handleBackgroundClick: React.MouseEventHandler<HTMLDivElement> = (
@@ -117,13 +119,27 @@ export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
   const handleBookSlot = async (slot: AvailabilitySlot) => {
     setBookingError(null);
     try {
-      await bookingMutation.mutateAsync({
-        deskId: desk.id,
-        startAt: slot.startAt,
-        endAt: slot.endAt,
-      });
+      if (isRecurring) {
+        const slotStart = new Date(slot.startAt);
+        const slotEnd = new Date(slot.endAt);
+        const pad = (n: number) => n.toString().padStart(2, "0");
 
-      // Refresh availability after successful booking
+        await recurringMutation.mutateAsync({
+          deskId: desk.id,
+          dayOfWeek,
+          startTime: `${pad(slotStart.getHours())}:${pad(slotStart.getMinutes())}:00`,
+          endTime: `${pad(slotEnd.getHours())}:${pad(slotEnd.getMinutes())}:00`,
+          occurrences,
+          startingFrom: toDateInputValue(selectedDate),
+        });
+      } else {
+        await bookingMutation.mutateAsync({
+          deskId: desk.id,
+          startAt: slot.startAt,
+          endAt: slot.endAt,
+        });
+      }
+
       await queryClient.invalidateQueries({
         queryKey: ["deskAvailability", desk.id, startAt, endAt],
       });
