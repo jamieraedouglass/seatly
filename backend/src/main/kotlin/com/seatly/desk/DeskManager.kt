@@ -1,13 +1,18 @@
 package com.seatly.desk
 
 import jakarta.inject.Singleton
+import java.time.DayOfWeek
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
+import java.time.temporal.TemporalAdjusters
 
 @Singleton
 class DeskManager(
   private val deskRepository: DeskRepository,
   private val bookingRepository: BookingRepository,
+  private val recurringBookingSeriesRepository: RecurringBookingSeriesRepository,
 ) {
   fun createDesk(command: CreateDeskCommand): DeskDto {
     val desk =
@@ -100,6 +105,60 @@ class DeskManager(
     val savedBooking = bookingRepository.save(booking)
     return BookingDto.from(savedBooking)
   }
+
+  fun createRecurringBooking(command: CreateRecurringBookingCommand): List<BookingDto> {
+    require(command.startTime.isBefore(command.endTime)) {
+      "startTime must be before endTime"
+    }
+
+    // using TemporalAdjusters here to find the first matching day of week on or after
+    // startingFrom -- had to look this up, wasn't sure if there was a simpler way
+    val firstDate = command.startingFrom.with(
+      TemporalAdjusters.nextOrSame(DayOfWeek.of(command.dayOfWeek))
+    )
+
+    // build out all the date ranges first so we can check conflicts before saving anything
+    // didn't want to save week 1 and 2 and then hit a conflict on week 3
+    val ranges = (0 until command.occurrences).map { week ->
+      val date = firstDate.plusWeeks(week)
+      val startAt = date.atTime(command.startTime).truncatedTo(ChronoUnit.MINUTES)
+      val endAt = date.atTime(command.endTime).truncatedTo(ChronoUnit.MINUTES)
+      startAt to endAt
+    }
+
+    // validate all occurrences upfront
+    for ((startAt, endAt) in ranges) {
+      if (bookingRepository.existsOverlappingBooking(command.deskId, startAt, endAt)) {
+        throw IllegalStateException("Desk is already booked for $startAt – $endAt")
+      }
+    }
+
+    val series = recurringBookingSeriesRepository.save(
+      RecurringBookingSeries(
+        deskId = command.deskId,
+        userId = command.userId,
+        dayOfWeek = command.dayOfWeek,
+        startTime = command.startTime,
+        endTime = command.endTime,
+        occurrences = command.occurrences,
+      )
+    )
+
+    // save each booking tied to the series
+    // not sure if there's a saveAll equivalent here that would be cleaner
+    return ranges.map { (startAt, endAt) ->
+      val saved = bookingRepository.save(
+        Booking(
+          deskId = command.deskId,
+          userId = command.userId,
+          startAt = startAt,
+          endAt = endAt,
+          seriesId = series.id,
+        )
+      )
+      BookingDto.from(saved)
+    }
+  }
 }
 
 private fun LocalDateTime.roundDownToHalfHour(): LocalDateTime {
@@ -160,6 +219,7 @@ data class BookingDto(
   val userId: Long,
   val startAt: LocalDateTime,
   val endAt: LocalDateTime,
+  val seriesId: Long? = null,
 ) {
   companion object {
     fun from(booking: Booking): BookingDto =
@@ -169,6 +229,17 @@ data class BookingDto(
         userId = booking.userId,
         startAt = booking.startAt,
         endAt = booking.endAt,
+        seriesId = booking.seriesId,
       )
   }
 }
+
+data class CreateRecurringBookingCommand(
+  val deskId: Long,
+  val userId: Long,
+  val dayOfWeek: Int,
+  val startTime: LocalTime,
+  val endTime: LocalTime,
+  val occurrences: Int,
+  val startingFrom: LocalDate,
+)

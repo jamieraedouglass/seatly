@@ -1,5 +1,5 @@
-import {useAuth} from "@/features/auth/AuthContext";
-import {useMutation, useQuery} from "@tanstack/react-query";
+import { useAuth } from "@/features/auth/AuthContext";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -72,7 +72,7 @@ export function useDeskAvailabilityQuery(
   startAt: string | null,
   endAt: string | null,
 ) {
-  const {accessToken} = useAuth();
+  const { accessToken } = useAuth();
 
   return useQuery<AvailabilitySlot[], Error>({
     queryKey: ["deskAvailability", deskId, startAt, endAt],
@@ -95,7 +95,7 @@ async function createBooking(
     throw new Error("Not authenticated");
   }
 
-  const {deskId, startAt, endAt} = input;
+  const { deskId, startAt, endAt } = input;
 
   const response = await fetch(`${API_BASE_URL}/desks/${deskId}/bookings`, {
     method: "POST",
@@ -103,7 +103,7 @@ async function createBooking(
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({startAt, endAt}),
+    body: JSON.stringify({ startAt, endAt }),
   });
 
   if (!response.ok) {
@@ -127,9 +127,65 @@ async function createBooking(
 }
 
 export function useCreateBookingMutation() {
-  const {accessToken} = useAuth();
+  const { accessToken } = useAuth();
 
   return useMutation({
-    mutationFn: (input: CreateBookingInput) => createBooking(accessToken, input),
+    mutationFn: (input: CreateBookingInput) =>
+      createBooking(accessToken, input),
+  });
+}
+
+export type CreateRecurringBookingInput = {
+  deskId: number;
+  dayOfWeek: number;
+  startTime: string;
+  endTime: string;
+  occurrences: number;
+  startingFrom: string;
+};
+
+async function createRecurringBooking(
+  accessToken: string | null,
+  input: CreateRecurringBookingInput,
+) {
+  if (!accessToken) {
+    throw new Error("Not authenticated");
+  }
+
+  const { deskId, ...body } = input;
+  const response = await fetch(
+    `${API_BASE_URL}/desks/${deskId}/bookings/recurring`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  if (!response.ok) {
+    let errorBody: ApiError | undefined;
+    try {
+      errorBody = (await response.json()) as ApiError;
+    } catch {
+      // ignore
+    }
+    throw new Error(
+      errorBody?.message ||
+        (response.status === 409
+          ? "One or more slots are already booked."
+          : "Failed to create recurring booking."),
+    );
+  }
+  return await response.json();
+}
+
+export function useCreateRecurringBookingMutation() {
+  const { accessToken } = useAuth();
+  return useMutation({
+    mutationFn: (input: CreateRecurringBookingInput) =>
+      createRecurringBooking(accessToken, input),
   });
 }

@@ -15,6 +15,8 @@ import io.micronaut.serde.annotation.Serdeable
 import jakarta.validation.Valid
 import jakarta.validation.constraints.NotBlank
 import jakarta.validation.constraints.NotNull
+import java.time.LocalDate
+import java.time.LocalTime
 import java.time.LocalDateTime
 
 @Controller("/desks")
@@ -73,6 +75,20 @@ open class DeskController(
       )
     val responseBody = BookingResponse.from(created)
     return HttpResponse.created(responseBody)
+  }
+
+  @Post("{deskId}/bookings/recurring")
+  @Secured(SecurityRule.IS_AUTHENTICATED)
+  open fun createRecurringBooking(
+    authentication: Authentication,
+    @PathVariable deskId: Long,
+    @Body @Valid request: CreateRecurringBookingRequest,
+  ): HttpResponse<List<BookingResponse>> {
+    val created =
+      deskManager.createRecurringBooking(
+        request.toCommand(deskId, authentication.name.toLong())
+      )
+      return HttpResponse.status<List<BookingResponse>>(HttpStatus.CREATED).body(created.map { BookingResponse.from(it)})
   }
 }
 
@@ -158,4 +174,29 @@ data class BookingResponse(
         endAt = booking.endAt,
       )
   }
+}
+
+@Serdeable
+data class CreateRecurringBookingRequest(
+  @field:NotNull
+  val dayOfWeek: Int,
+  @field:NotNull
+  val startTime: LocalTime,
+  @field:NotNull
+  val endTime: LocalTime,
+  @field:NotNull
+  val occurrences: Int,
+  @field:NotNull
+  val startingFrom: LocalDate,
+
+) {
+  fun toCommand(deskId: Long, userId: Long) = CreateRecurringBookingCommand(
+    deskId = deskId,
+    userId = userId,
+    dayOfWeek = dayOfWeek,
+    startTime = startTime,
+    endTime = endTime,
+    occurrences = occurrences,
+    startingFrom = startingFrom,
+  )
 }

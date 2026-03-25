@@ -3,6 +3,8 @@ import {screen, waitFor, within} from "@testing-library/react";
 import userEvent, {type UserEvent} from "@testing-library/user-event";
 import {renderWithProviders} from "@/test-utils/renderWithProviders";
 import DeskDashboardPage from "./DeskDashboardPage";
+import { DeskBookingModal } from "./components/DeskBookingModal";
+import React from "react";
 
 describe("DeskDashboardPage", () => {
 
@@ -100,4 +102,19 @@ describe("DeskDashboardPage", () => {
       ).not.toBeInTheDocument();
     });
   });
-});
+    it("shows recurring booking options when checkbox is checked", async () => {
+      renderWithProviders(
+      <DeskBookingModal 
+      desk={{id: 1, name: "Desk A", location: null}} 
+      isOpen={true} 
+      onClose={() => {}} 
+      />,
+      );
+
+      const checkbox = screen.getByLabelText(/recurring/i); 
+      await user.click(checkbox);
+
+      expect(screen.getByLabelText(/day/i)).toBeInTheDocument();
+      expect(screen.getByLabelText("Weeks:")).toBeInTheDocument();
+    });
+  });

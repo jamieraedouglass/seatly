@@ -1,4 +1,4 @@
-import {http, HttpResponse} from "msw";
+import { http, HttpResponse } from "msw";
 
 type CreateUserRequest = {
   email: string;
@@ -49,20 +49,20 @@ const desks: DeskResponse[] = [
 let bookingIdCounter = 1;
 
 export const handlers = [
-  http.post("*/users", async ({request}) => {
+  http.post("*/users", async ({ request }) => {
     const body = (await request.json()) as CreateUserRequest;
 
     if (!body.email || !body.password) {
       return HttpResponse.json(
-        {message: "Validation failed"},
-        {status: 400},
+        { message: "Validation failed" },
+        { status: 400 },
       );
     }
 
     if (body.email === "taken@example.com") {
       return HttpResponse.json(
-        {message: "Email already in use"},
-        {status: 409},
+        { message: "Email already in use" },
+        { status: 409 },
       );
     }
 
@@ -72,11 +72,11 @@ export const handlers = [
         email: body.email,
         fullName: body.fullName ?? null,
       },
-      {status: 201},
+      { status: 201 },
     );
   }),
 
-  http.post("*/users/login", async ({request}) => {
+  http.post("*/users/login", async ({ request }) => {
     const body = (await request.json()) as LoginRequest;
 
     if (body.email === "test@example.com" && body.password === "Password123!") {
@@ -89,8 +89,8 @@ export const handlers = [
     }
 
     return HttpResponse.json(
-      {message: "Invalid credentials"},
-      {status: 401},
+      { message: "Invalid credentials" },
+      { status: 401 },
     );
   }),
 
@@ -98,14 +98,17 @@ export const handlers = [
     return HttpResponse.json(desks);
   }),
 
-  http.post("*/desks", async ({request}) => {
-    const body = (await request.json()) as { name?: string; location?: string | null };
+  http.post("*/desks", async ({ request }) => {
+    const body = (await request.json()) as {
+      name?: string;
+      location?: string | null;
+    };
 
     const name = body.name?.trim();
     if (!name) {
       return HttpResponse.json(
-        {message: "Name is required"},
-        {status: 400},
+        { message: "Name is required" },
+        { status: 400 },
       );
     }
 
@@ -120,18 +123,18 @@ export const handlers = [
 
     desks.push(newDesk);
 
-    return HttpResponse.json(newDesk, {status: 201});
+    return HttpResponse.json(newDesk, { status: 201 });
   }),
 
-  http.get("*/desks/:deskId/availability", ({request}) => {
+  http.get("*/desks/:deskId/availability", ({ request }) => {
     const url = new URL(request.url);
     const startAt = url.searchParams.get("startAt");
     const endAt = url.searchParams.get("endAt");
 
     if (!startAt || !endAt) {
       return HttpResponse.json(
-        {message: "startAt and endAt are required"},
-        {status: 400},
+        { message: "startAt and endAt are required" },
+        { status: 400 },
       );
     }
 
@@ -148,15 +151,15 @@ export const handlers = [
       },
     ];
 
-    return HttpResponse.json(availability, {status: 200});
+    return HttpResponse.json(availability, { status: 200 });
   }),
 
-  http.post("*/desks/:deskId/bookings", async ({params, request}) => {
-    const {deskId} = params as { deskId?: string };
+  http.post("*/desks/:deskId/bookings", async ({ params, request }) => {
+    const { deskId } = params as { deskId?: string };
     if (!deskId) {
       return HttpResponse.json(
-        {message: "deskId is required"},
-        {status: 400},
+        { message: "deskId is required" },
+        { status: 400 },
       );
     }
 
@@ -164,8 +167,8 @@ export const handlers = [
 
     if (!body.startAt || !body.endAt) {
       return HttpResponse.json(
-        {message: "startAt and endAt are required"},
-        {status: 400},
+        { message: "startAt and endAt are required" },
+        { status: 400 },
       );
     }
 
@@ -177,6 +180,48 @@ export const handlers = [
       endAt: body.endAt,
     };
 
-    return HttpResponse.json(response, {status: 201});
+    return HttpResponse.json(response, { status: 201 });
   }),
+
+  http.post(
+    "*/desks/:deskId/bookings/recurring",
+    async ({ params, request }) => {
+      const { deskId } = params as { deskId?: string };
+      if (!deskId) {
+        return HttpResponse.json(
+          { message: "deskId is required" },
+          { status: 400 },
+        );
+      }
+
+      const body = (await request.json()) as {
+        dayOfWeek?: number;
+        startTime?: string;
+        endTime?: string;
+        occurrences?: number;
+        startingFrom?: string;
+      };
+      if (
+        !body.dayOfWeek ||
+        !body.startTime ||
+        !body.endTime ||
+        !body.occurrences ||
+        !body.startingFrom
+      ) {
+        return HttpResponse.json(
+          { message: "All fields are required" },
+          { status: 400 },
+        );
+      }
+      const bookings = Array.from({ length: body.occurrences }, (_, i) => ({
+        id: bookingIdCounter++,
+        deskId: Number(deskId),
+        userId: 1,
+        startAt: `${body.startingFrom}T${body.startTime}`,
+        endAt: `${body.startingFrom}T${body.endTime}`,
+        seriesId: 1,
+      }));
+      return HttpResponse.json(bookings, { status: 201 });
+    },
+  ),
 ];

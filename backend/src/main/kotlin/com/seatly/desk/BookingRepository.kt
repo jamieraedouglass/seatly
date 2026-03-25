@@ -54,6 +54,8 @@ data class Booking(
   val deskId: Long = -1,
   @Column(name = "user_id", nullable = false)
   val userId: Long = -1,
+  @Column(name = "series_id")
+  val seriesId: Long? = null,
   @Column(name = "start_at", nullable = false)
   val startAt: LocalDateTime = LocalDateTime.now(),
   @Column(name = "end_at", nullable = false)

@@ -4,8 +4,8 @@ import {
   useCreateBookingMutation,
   useDeskAvailabilityQuery,
 } from "@/features/desks/api/deskBookings";
-import type {Desk} from "@/features/desks/api/desks";
-import {useQueryClient} from "@tanstack/react-query";
+import type { Desk } from "@/features/desks/api/desks";
+import { useQueryClient } from "@tanstack/react-query";
 
 type DeskBookingModalProps = {
   desk: Desk & { id: number };
@@ -49,12 +49,17 @@ function formatTimeRange(slot: AvailabilitySlot): string {
 }
 
 export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
-                                                                    desk,
-                                                                    isOpen,
-                                                                    onClose,
-                                                                  }) => {
+  desk,
+  isOpen,
+  onClose,
+}) => {
   const queryClient = useQueryClient();
-  const [selectedDate, setSelectedDate] = React.useState<Date>(() => new Date());
+  const [selectedDate, setSelectedDate] = React.useState<Date>(
+    () => new Date(),
+  );
+  const [isRecurring, setIsRecurring] = React.useState(false);
+  const [dayOfWeek, setDayOfWeek] = React.useState(1);
+  const [occurrences, setOccurrences] = React.useState(4);
 
   const start = React.useMemo(
     () =>
@@ -93,11 +98,13 @@ export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
     isError,
     error,
   } = useDeskAvailabilityQuery(desk.id, startAt, endAt);
-  
+
   const bookingMutation = useCreateBookingMutation();
   const [bookingError, setBookingError] = React.useState<string | null>(null);
 
-  const handleBackgroundClick: React.MouseEventHandler<HTMLDivElement> = (e) => {
+  const handleBackgroundClick: React.MouseEventHandler<HTMLDivElement> = (
+    e,
+  ) => {
     if (bookingMutation.isPending) return;
     e.stopPropagation();
     onClose();
@@ -143,6 +150,12 @@ export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
     if (isOpen) {
       setSelectedDate(new Date());
       setBookingError(null);
+      setIsRecurring(false);
+
+      // Initialize day of week to match the current date (1=Mon, ..., 7=Sun)
+      const currentDay = new Date().getDay();
+      setDayOfWeek(currentDay === 0 ? 7 : currentDay);
+      setOccurrences(4);
     }
   }, [isOpen]);
 
@@ -172,7 +185,7 @@ export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
         }}
         onClick={handleInnerClick}
       >
-        <h2 style={{marginTop: 0, marginBottom: "0.75rem"}}>
+        <h2 style={{ marginTop: 0, marginBottom: "0.75rem" }}>
           Book desk: {desk.name}
         </h2>
 
@@ -185,7 +198,7 @@ export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
             fontSize: "0.9rem",
           }}
         >
-          <label htmlFor="booking-date" style={{whiteSpace: "nowrap"}}>
+          <label htmlFor="booking-date" style={{ whiteSpace: "nowrap" }}>
             Date:
           </label>
           <input
@@ -193,24 +206,96 @@ export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
             type="date"
             value={toDateInputValue(selectedDate)}
             onChange={handleDateChange}
-            style={{padding: "0.25rem 0.4rem"}}
+            style={{ padding: "0.25rem 0.4rem" }}
           />
-          <span style={{marginLeft: "auto"}}>
+          <span style={{ marginLeft: "auto" }}>
             Showing availability 09:00 – 17:00
           </span>
         </div>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.75rem",
+            marginBottom: "0.75rem",
+            fontSize: "0.9rem",
+          }}
+        >
+          <label
+            htmlFor="recurring-checkbox"
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.5rem",
+              cursor: "pointer",
+            }}
+          >
+            <input
+              id="recurring-checkbox"
+              type="checkbox"
+              checked={isRecurring}
+              onChange={(e) => setIsRecurring(e.target.checked)}
+            />
+            Recurring weekly booking
+          </label>
+        </div>
+
+        {isRecurring && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "0.75rem",
+              marginBottom: "0.75rem",
+              fontSize: "0.9rem",
+            }}
+          >
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              <label htmlFor="day-of-week">Day:</label>
+              <select
+                id="day-of-week"
+                value={dayOfWeek}
+                onChange={(e) => setDayOfWeek(Number(e.target.value))}
+              >
+                <option value={1}>Monday</option>
+                <option value={2}>Tuesday</option>
+                <option value={3}>Wednesday</option>
+                <option value={4}>Thursday</option>
+                <option value={5}>Friday</option>
+                <option value={6}>Saturday</option>
+                <option value={7}>Sunday</option>
+              </select>
+            </div>
+            <div
+              style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}
+            >
+              <label htmlFor="occurrences">Weeks:</label>
+              <input
+                id="occurrences"
+                type="number"
+                value={occurrences}
+                onChange={(e) => setOccurrences(Number(e.target.value))}
+                min={1}
+              />
+            </div>
+          </div>
+        )}
 
         {isLoading && <p>Loading availability...</p>}
 
         {isError && (
-          <p style={{color: "red"}}>
+          <p style={{ color: "red" }}>
             Failed to load availability: {error?.message}
           </p>
         )}
 
-        {!isLoading && !isError && (!availability || availability.length === 0) && (
-          <p>No availability data for this period.</p>
-        )}
+        {!isLoading &&
+          !isError &&
+          (!availability || availability.length === 0) && (
+            <p>No availability data for this period.</p>
+          )}
 
         {!isLoading && !isError && availability && availability.length > 0 && (
           <div
@@ -229,92 +314,92 @@ export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
               }}
             >
               <thead>
-              <tr>
-                <th
-                  style={{
-                    textAlign: "left",
-                    padding: "0.5rem",
-                    borderBottom: "1px solid #ddd",
-                  }}
-                >
-                  Time
-                </th>
-                <th
-                  style={{
-                    textAlign: "left",
-                    padding: "0.5rem",
-                    borderBottom: "1px solid #ddd",
-                  }}
-                >
-                  Status
-                </th>
-                <th
-                  style={{
-                    textAlign: "right",
-                    padding: "0.5rem",
-                    borderBottom: "1px solid #ddd",
-                  }}
-                >
-                  Action
-                </th>
-              </tr>
+                <tr>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "0.5rem",
+                      borderBottom: "1px solid #ddd",
+                    }}
+                  >
+                    Time
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "left",
+                      padding: "0.5rem",
+                      borderBottom: "1px solid #ddd",
+                    }}
+                  >
+                    Status
+                  </th>
+                  <th
+                    style={{
+                      textAlign: "right",
+                      padding: "0.5rem",
+                      borderBottom: "1px solid #ddd",
+                    }}
+                  >
+                    Action
+                  </th>
+                </tr>
               </thead>
               <tbody>
-              {availability.map((slot, index) => {
-                const isAvailable =
-                  String(slot.status).toUpperCase() === "AVAILABLE";
+                {availability.map((slot, index) => {
+                  const isAvailable =
+                    String(slot.status).toUpperCase() === "AVAILABLE";
 
-                return (
-                  <tr key={`${slot.startAt}-${slot.endAt}-${index}`}>
-                    <td
-                      style={{
-                        padding: "0.5rem",
-                        borderBottom: "1px solid #eee",
-                      }}
-                    >
-                      {formatTimeRange(slot)}
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.5rem",
-                        borderBottom: "1px solid #eee",
-                        textTransform: "capitalize",
-                      }}
-                    >
-                      {slot.status.toLowerCase()}
-                    </td>
-                    <td
-                      style={{
-                        padding: "0.5rem",
-                        borderBottom: "1px solid #eee",
-                        textAlign: "right",
-                      }}
-                    >
-                      <button
-                        type="button"
-                        onClick={() => handleBookSlot(slot)}
-                        disabled={!isAvailable || bookingMutation.isPending}
+                  return (
+                    <tr key={`${slot.startAt}-${slot.endAt}-${index}`}>
+                      <td
                         style={{
-                          padding: "0.3rem 0.7rem",
-                          cursor:
-                            isAvailable && !bookingMutation.isPending
-                              ? "pointer"
-                              : "not-allowed",
+                          padding: "0.5rem",
+                          borderBottom: "1px solid #eee",
                         }}
                       >
-                        {isAvailable ? "Book" : "Unavailable"}
-                      </button>
-                    </td>
-                  </tr>
-                );
-              })}
+                        {formatTimeRange(slot)}
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.5rem",
+                          borderBottom: "1px solid #eee",
+                          textTransform: "capitalize",
+                        }}
+                      >
+                        {slot.status.toLowerCase()}
+                      </td>
+                      <td
+                        style={{
+                          padding: "0.5rem",
+                          borderBottom: "1px solid #eee",
+                          textAlign: "right",
+                        }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => handleBookSlot(slot)}
+                          disabled={!isAvailable || bookingMutation.isPending}
+                          style={{
+                            padding: "0.3rem 0.7rem",
+                            cursor:
+                              isAvailable && !bookingMutation.isPending
+                                ? "pointer"
+                                : "not-allowed",
+                          }}
+                        >
+                          {isAvailable ? "Book" : "Unavailable"}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
         )}
 
         {bookingError && (
-          <p style={{color: "red", marginTop: "0.75rem"}}>{bookingError}</p>
+          <p style={{ color: "red", marginTop: "0.75rem" }}>{bookingError}</p>
         )}
 
         <div
@@ -328,7 +413,7 @@ export const DeskBookingModal: React.FC<DeskBookingModalProps> = ({
           <button
             type="button"
             onClick={onClose}
-            style={{padding: "0.4rem 0.8rem", cursor: "pointer"}}
+            style={{ padding: "0.4rem 0.8rem", cursor: "pointer" }}
             disabled={bookingMutation.isPending}
           >
             Close
